@@ -1,4 +1,5 @@
 "use client"
+
 import { useForm } from '@tanstack/react-form'
 import { Field, FieldError } from "@/components/ui/field"
 
@@ -22,15 +23,20 @@ const formSchema = z.object({
     inviteEmails: z.email().array()
 })
 
-type CreateExchangeValues = z.input<typeof formSchema>
+type ExchangeValues = z.input<typeof formSchema>
 
-export function CreateExchangeForm() {
-    const defaultValues: CreateExchangeValues = {
-        name: "",
-        exchangeDate: null,
-        exchangeDescription: "",
-        exchangeBudget: null,
-        inviteEmails: []
+type Props = Partial<ExchangeValues> & {
+    title: string,
+    onSubmit: (data: ExchangeValues) => void
+}
+
+export function ExchangeForm(props: Props) {
+    const defaultValues: ExchangeValues = {
+        name: props.name ?? "",
+        exchangeDate: props.exchangeDate ?? null,
+        exchangeDescription: props.exchangeDescription ?? "",
+        exchangeBudget: props.exchangeBudget ?? null,
+        inviteEmails: props.inviteEmails ?? []
     }
 
     const { handleSubmit, Field: FromField } = useForm({
@@ -45,8 +51,8 @@ export function CreateExchangeForm() {
     })
 
     return <div className='flex flex-col'>
-        <h1 className='text-2xl font-bold mb-10'>Create Exchange</h1>
-        <form id='create-exchange-form' onSubmit={(e) => {
+        <h1 className='text-2xl font-bold mb-10'>{props.title} Exchange</h1>
+        <form id='-exchange-form' onSubmit={(e) => {
             e.preventDefault()
             handleSubmit()
         }}>
@@ -122,7 +128,7 @@ export function CreateExchangeForm() {
             </div>
             <Field>
                 <Button type="submit" >
-                    Create exchange
+                    {props.title} exchange
                 </Button>
             </Field>
         </form>

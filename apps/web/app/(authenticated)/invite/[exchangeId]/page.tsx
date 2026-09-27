@@ -6,7 +6,7 @@ import { use } from 'react'
 
 // /invate/abc123?email=matthew.william.ritter@gmail.com
 
-export default function BlogPostPage({
+export default function InvitePage({
     params,
 }: {
     params: Promise<{ exchangeId: string }>
@@ -21,7 +21,7 @@ export default function BlogPostPage({
         // the backend will need to check if the email is in the exchange
         // then accept exchange invite
         // I wonder if the invite link should be a magic link so if they click the email thats creates the 'token' account
-        // and when they click join here they're just redirected to /dashboard/exchanges
+        // and when they click join here they accept the invite and are redirected to /dashboard/exchanges
         console.log({
             exchangeId,
             email

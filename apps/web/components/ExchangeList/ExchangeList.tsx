@@ -1,11 +1,15 @@
 import { ExchangeListItems } from "./ExchangeListItem"
 
+// TODO: all types need to be shared from the db types
+
 export type Exchange = {
     id: string,
     name: string,
     exchangeDate: Date,
     exchangeDescription?: string,
-    exchangeBudgent?: string
+    exchangeBudgent?: number,
+    exchangeInites: string[],
+    exchangeOrganizerId: string
 }
 
 type Props = {
