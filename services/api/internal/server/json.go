@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/mwritter/giftexchanger/services/api/internal/apitypes"
 )
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -12,5 +14,5 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+	writeJSON(w, status, apitypes.ErrorResponse{Error: msg})
 }

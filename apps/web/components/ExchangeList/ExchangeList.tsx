@@ -1,16 +1,5 @@
+import type { Exchange } from "@giftexchanger/types"
 import { ExchangeListItems } from "./ExchangeListItem"
-
-// TODO: all types need to be shared from the db types
-
-export type Exchange = {
-    id: string,
-    name: string,
-    exchangeDate: Date,
-    exchangeDescription?: string,
-    exchangeBudgent?: number,
-    exchangeInites: string[],
-    exchangeOrganizerId: string
-}
 
 type Props = {
     exchanges: Exchange[]

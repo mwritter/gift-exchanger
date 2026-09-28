@@ -1,5 +1,5 @@
 import { Gift, Heart, Home, Settings } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuItem } from "../ui/sidebar";
 import { requireUser } from "@/lib/session";
 import { DashboardSidebarLink } from "./DashboardSidebarLink";
 import { LogoutButton } from "../LogoutButton/LogoutButton";
@@ -47,7 +47,7 @@ export async function DashboardSidebar() {
         </SidebarContent>
         <SidebarFooter>
             <div>
-                <p>{user.display_name}</p>
+                <p>{user.displayName}</p>
                 <p className="text-xs">{user.email}</p>
             </div>
             <LogoutButton />

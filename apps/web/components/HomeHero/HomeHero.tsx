@@ -8,7 +8,7 @@ export function HomeHero() {
   const { push } = useRouter()
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-8">
+    <main className="flex flex-1 flex-col gap-6 p-8 md:px-20">
       <Header />
       <div className="grid md:grid-cols-2 gap-4 flex-1 p-5">
         <div className="flex flex-col gap-4 mx-auto max-w-125 justify-center text-center">

@@ -22,6 +22,7 @@ func New(pool *pgxpool.Pool, authService *auth.Service) http.Handler {
 		r.Get("/ready", s.ready)
 
 		r.Post("/auth/magic-link", s.requestMagicLink)
+		r.Post("/auth/verify-code", s.verifyLoginCode)
 		r.Get("/auth/callback", s.authCallback)
 		r.Post("/auth/logout", s.logout)
 
