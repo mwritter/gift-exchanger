@@ -85,7 +85,7 @@ export function LoginForm() {
         </FromField>
         <Field>
             <Button type="submit" disabled={sendLink.isPending}>
-                {sendLink.isPending ? "Sending link…" : "Login"}
+                {sendLink.isPending ? "Sending link…" : "Log in"}
             </Button>
             {sendLink.isError && (
                 <FieldError>{sendLink.error.message}</FieldError>
@@ -146,7 +146,7 @@ function LoginCodeForm({ email, onUseDifferentEmail }: LoginCodeFormProps) {
                 return (
                     <Field data-invalid={isInvalid}>
                         <Label htmlFor={field.name}>
-                            Login code
+                            Log in code
                         </Label>
                         <Input
                             id={field.name}

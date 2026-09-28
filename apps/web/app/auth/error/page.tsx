@@ -4,9 +4,9 @@ import Link from "next/link"
 
 const reasons = {
     invalid_link: {
-        title: "That login link no longer works",
+        title: "That log in link no longer works",
         description:
-            "Login links can only be used once, and they expire a few minutes after we send them. Request a new one and it will be waiting in your inbox."
+            "Log in links can only be used once, and they expire a few minutes after we send them. Request a new one and it will be waiting in your inbox."
     },
     unexpected: {
         title: "We could not finish logging you in",
