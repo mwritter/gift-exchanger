@@ -6,7 +6,8 @@ import (
 )
 
 type Mailer interface {
-	SendMagicLink(ctx context.Context, to, url string) error
+	SendLoginEmail(ctx context.Context, to, url, code string) error
+	SendInvite(ctx context.Context, to, exchangeName, url string) error
 }
 
 // LogMailer writes the login URL to the process log. Used in local development
@@ -15,11 +16,19 @@ type LogMailer struct {
 	Logger *log.Logger
 }
 
-func (m LogMailer) SendMagicLink(_ context.Context, to, url string) error {
-	logger := m.Logger
-	if logger == nil {
-		logger = log.Default()
+func (m LogMailer) logger() *log.Logger {
+	if m.Logger == nil {
+		return log.Default()
 	}
-	logger.Printf("magic link for %s: %s", to, url)
+	return m.Logger
+}
+
+func (m LogMailer) SendLoginEmail(_ context.Context, to, url, code string) error {
+	m.logger().Printf("login for %s: code %s or link %s", to, code, url)
+	return nil
+}
+
+func (m LogMailer) SendInvite(_ context.Context, to, exchangeName, url string) error {
+	m.logger().Printf("invite for %s to %q: %s", to, exchangeName, url)
 	return nil
 }

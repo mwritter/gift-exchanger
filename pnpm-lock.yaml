@@ -17,6 +17,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.8.0
         version: 1.8.0(@date-fns/tz@1.5.0)(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@giftexchanger/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@tanstack/react-form':
         specifier: ^1.33.5
         version: 1.33.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -81,6 +84,8 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
+  packages/types: {}
 
 packages:
 

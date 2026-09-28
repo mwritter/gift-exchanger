@@ -11,7 +11,7 @@ export default function Page() {
             <DialogHeader>
                 <DialogTitle>Login with your email</DialogTitle>
                 <DialogDescription>
-                    We use magic links to login.  We send you a email that will give you instructions on login in.
+                    No password needed. We&apos;ll email you a code to enter here, or a link you can click instead.
                 </DialogDescription>
             </DialogHeader>
             <LoginForm />

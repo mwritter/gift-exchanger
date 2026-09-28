@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
+    "@giftexchanger/types": "workspace:*",
     "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-query": "^5.103.1",
     "class-variance-authority": "^0.7.1",

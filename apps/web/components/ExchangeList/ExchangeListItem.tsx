@@ -3,10 +3,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Edit, Trash, User2, Wallet } from "lucide-react";
-import { Exchange } from "./ExchangeList";
+import type { Exchange } from "@giftexchanger/types";
+import { parseISO } from "date-fns";
 import Link from "next/link";
 
-export function ExchangeListItems({ id, name, exchangeDate, exchangeBudgent, exchangeDescription, exchangeInites, exchangeOrganizerId }: Exchange) {
+export function ExchangeListItems({ id, name, exchangeDate, budgetCents, description, memberCount, organizerId }: Exchange) {
 
     const handleDeleteExchange = () => {
         console.log("deleting exchange " + id)
@@ -14,7 +15,7 @@ export function ExchangeListItems({ id, name, exchangeDate, exchangeBudgent, exc
 
     // Get the current user id
 
-    const isOrganizer = exchangeOrganizerId === 'current-user-id'
+    const isOrganizer = organizerId === 'current-user-id'
 
     // if not isOrganizer, fetch the organizer user to get the display name and email
 
@@ -22,7 +23,7 @@ export function ExchangeListItems({ id, name, exchangeDate, exchangeBudgent, exc
         <Card>
             <CardHeader>
                 <CardTitle>{name}</CardTitle>
-                <CardDescription>{exchangeDescription}</CardDescription>
+                <CardDescription>{description}</CardDescription>
                 {isOrganizer && <CardAction>
                     <Button render={<Link href={`/dashboard/exchanges/edit/${id}`} />} variant={'ghost'}>
                         <Edit size={12} />
@@ -33,14 +34,14 @@ export function ExchangeListItems({ id, name, exchangeDate, exchangeBudgent, exc
                 </CardAction>}
             </CardHeader>
             <CardContent>
-                {exchangeInites.length > 1 && <div className="flex items-center gap-2">
-                    <User2 size={15} /> {exchangeInites.length} participants
+                {memberCount > 1 && <div className="flex items-center gap-2">
+                    <User2 size={15} /> {memberCount} participants
                 </div>}
                 <div className="flex items-center gap-2">
-                    <Calendar size={15} /> {exchangeDate.toDateString()}
+                    <Calendar size={15} /> {parseISO(exchangeDate).toDateString()}
                 </div>
-                {exchangeBudgent && <div className="flex items-center gap-2">
-                    <Wallet size={15} /> ${exchangeBudgent} budget
+                {budgetCents != null && <div className="flex items-center gap-2">
+                    <Wallet size={15} /> ${budgetCents / 100} budget
                 </div>}
             </CardContent>
             <CardFooter>

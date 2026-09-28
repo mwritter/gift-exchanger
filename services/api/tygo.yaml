@@ -1,0 +1,5 @@
+packages:
+  - path: "github.com/mwritter/giftexchanger/services/api/internal/apitypes"
+    output_path: "../../packages/types/src/api.ts"
+    frontmatter: |
+      // Source: services/api/internal/apitypes. Regenerate with `pnpm types:generate`.
