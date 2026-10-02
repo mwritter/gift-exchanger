@@ -1,8 +1,9 @@
-import { Gift, Heart, Home, Settings } from "lucide-react";
+import { Gift } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuItem } from "../ui/sidebar";
 import { requireUser } from "@/lib/session";
 import { DashboardSidebarLink } from "./DashboardSidebarLink";
 import { LogoutButton } from "../LogoutButton/LogoutButton";
+import navLinks from "../consts/navLinks";
 
 export async function DashboardSidebar() {
     const user = await requireUser()
@@ -17,30 +18,12 @@ export async function DashboardSidebar() {
             <SidebarGroup>
                 <SidebarGroupContent>
                     <SidebarMenu className="flex flex-col gap-2">
-                        <SidebarMenuItem>
-                            <DashboardSidebarLink href={"/dashboard"}>
-                                <Home />
-                                Home
+                        {navLinks.map(({ href, Icon, text }) => <SidebarMenuItem key={href}>
+                            <DashboardSidebarLink href={href}>
+                                <Icon />
+                                {text}
                             </DashboardSidebarLink>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <DashboardSidebarLink href={"/dashboard/exchanges"}>
-                                <Gift />
-                                Exchanges
-                            </DashboardSidebarLink>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <DashboardSidebarLink href={"/dashboard/wishlist"}>
-                                <Heart />
-                                Wishlist
-                            </DashboardSidebarLink>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <DashboardSidebarLink href={"/dashboard/settings"}>
-                                <Settings />
-                                Settings
-                            </DashboardSidebarLink>
-                        </SidebarMenuItem>
+                        </SidebarMenuItem>)}
                     </SidebarMenu>
                 </SidebarGroupContent>
             </SidebarGroup>

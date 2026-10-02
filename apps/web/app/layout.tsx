@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import { Providers } from "./providers";
 import "./globals.css";
+import { CurrentUserProvider } from "@/components/CurrentUser/CurrentUserProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "GiftExchanger",
-  description: "Self-hostable Secret Santa for friends, families, and small groups.",
+  description: "A way to give gifts for friends, families, and small groups.",
 };
 
 export default function RootLayout({ children, login }: LayoutProps<"/">) {
@@ -27,8 +28,10 @@ export default function RootLayout({ children, login }: LayoutProps<"/">) {
     >
       <body className={`${geistSans.className} min-h-full flex flex-col`}>
         <Providers>
-          {children}
-          {login}
+          <CurrentUserProvider>
+            {children}
+            {login}
+          </CurrentUserProvider>
         </Providers>
       </body>
     </html>

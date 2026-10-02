@@ -1,26 +1,23 @@
 "use client"
 
-import { useState } from "react";
 import { ExchangeInviteInput } from "./ExchangeInviteInput";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Trash } from "lucide-react";
 
+type Props = {
+    emails: string[]
+    onChange: (emails: string[]) => void
+}
 
-export function ExchangeInviteForm() {
-    const [emails, setEmails] = useState<string[]>([])
-
+export function ExchangeInviteForm({ emails, onChange }: Props) {
     const onEmailInputSubmit = (email: string) => {
-        setEmails(cur => {
-            const found = cur.find(e => e === email)
-            if (!found) return [...cur, email]
-
-            return cur
-        })
+        if (emails.includes(email)) return
+        onChange([...emails, email])
     }
 
     const onEmailInputRemove = (email: string) => {
-        setEmails(cur => cur.filter(e => e !== email))
+        onChange(emails.filter(e => e !== email))
     }
 
 

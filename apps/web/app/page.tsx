@@ -1,16 +1,12 @@
+import { Header } from "@/components/Header/Header";
 import { HomeHero } from "@/components/HomeHero/HomeHero";
-import { getCurrentUser } from "@/lib/session";
-import { redirect } from "next/navigation";
 
-// This home page is for unauthenticated users
-// If authenticated redirect to user dashboard
-
-async function Home() {
-  if (await getCurrentUser()) {
-    redirect("/dashboard");
-  }
-
-  return <HomeHero />;
+// The home page will act as the marketing site
+function Home() {
+  return <main className="flex flex-1 flex-col gap-6 p-8 md:px-20">
+    <Header />
+    <HomeHero />
+  </main>;
 }
 
 export default Home;

@@ -32,6 +32,16 @@ export const ExchangeStateDraft: ExchangeState = "draft";
 export const ExchangeStateOpen: ExchangeState = "open";
 export const ExchangeStateActive: ExchangeState = "active";
 export const ExchangeStateCompleted: ExchangeState = "completed";
+/**
+ * ExchangeMember is a user who has joined an exchange. DisplayName is empty
+ * until the user sets one.
+ */
+export interface ExchangeMember {
+  userId: string;
+  email: string;
+  displayName: string;
+  isOrganizer: boolean;
+}
 export interface Exchange {
   id: string;
   organizerId: string;
@@ -43,8 +53,14 @@ export interface Exchange {
   exchangeDate: string;
   budgetCents?: number | null;
   state: ExchangeState;
+  members: ExchangeMember[];
+}
+/**
+ * ListExchangeInvitesResponse holds the invites that have been neither accepted
+ * nor declined. Only the organizer of an exchange may read them.
+ */
+export interface ListExchangeInvitesResponse {
   inviteEmails: string[];
-  memberCount: number /* int */;
 }
 export interface CreateExchangeRequest {
   name: string;
