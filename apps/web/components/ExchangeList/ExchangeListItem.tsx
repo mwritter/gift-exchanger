@@ -1,41 +1,32 @@
 "use client"
 
+import { useCurrentUser } from "@/components/CurrentUser/CurrentUserProvider";
+import { DeleteExchangeButton } from "@/components/DeleteExchangeButton/DeleteExchangeButton";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Edit, Trash, User2, Wallet } from "lucide-react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar, Edit, User2, Wallet } from "lucide-react";
 import type { Exchange } from "@giftexchanger/types";
 import { parseISO } from "date-fns";
 import Link from "next/link";
 
-export function ExchangeListItems({ id, name, exchangeDate, budgetCents, description, memberCount, organizerId }: Exchange) {
+export function ExchangeListItems({ id, name, exchangeDate, budgetCents, description, members, organizerId }: Exchange) {
+    const { user } = useCurrentUser()
+    const isOrganizer = organizerId === user?.id
 
-    const handleDeleteExchange = () => {
-        console.log("deleting exchange " + id)
-    }
-
-    // Get the current user id
-
-    const isOrganizer = organizerId === 'current-user-id'
-
-    // if not isOrganizer, fetch the organizer user to get the display name and email
+    const organizer = members.find(member => member.isOrganizer)
+    const membersText = members.length > 1 ? 'members' : 'member'
 
     return <li>
         <Card>
             <CardHeader>
-                <CardTitle>{name}</CardTitle>
+                <CardTitle>
+                    <Link href={`/dashboard/exchanges/${id}`} className="hover:underline">{name}</Link>
+                </CardTitle>
                 <CardDescription>{description}</CardDescription>
-                {isOrganizer && <CardAction>
-                    <Button render={<Link href={`/dashboard/exchanges/edit/${id}`} />} variant={'ghost'}>
-                        <Edit size={12} />
-                    </Button>
-                    <Button variant={'destructive'} onClick={handleDeleteExchange}>
-                        <Trash size={12} />
-                    </Button>
-                </CardAction>}
             </CardHeader>
             <CardContent>
-                {memberCount > 1 && <div className="flex items-center gap-2">
-                    <User2 size={15} /> {memberCount} participants
+                {members.length > 0 && <div className="flex items-center gap-2">
+                    <User2 size={15} /> <span className="truncate">{members.length} {membersText} </span>
                 </div>}
                 <div className="flex items-center gap-2">
                     <Calendar size={15} /> {parseISO(exchangeDate).toDateString()}
@@ -44,9 +35,14 @@ export function ExchangeListItems({ id, name, exchangeDate, budgetCents, descrip
                     <Wallet size={15} /> ${budgetCents / 100} budget
                 </div>}
             </CardContent>
-            <CardFooter>
-                {/* Show organizer display name || email */}
-                <p className="text-sm">Created by you</p>
+            <CardFooter className="flex justify-between">
+                <p className="text-sm">Created by {isOrganizer ? "you" : organizer?.displayName || organizer?.email}</p>
+                {isOrganizer && <div className="flex gap-2">
+                    <Button nativeButton={false} render={<Link href={`/dashboard/exchanges/${id}/edit`} />} variant="outline">
+                        <Edit size={12} />
+                    </Button>
+                    <DeleteExchangeButton exchangeId={id} exchangeName={name} />
+                </div>}
             </CardFooter>
         </Card>
     </li>

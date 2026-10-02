@@ -35,17 +35,31 @@ const (
 	ExchangeStateCompleted ExchangeState = "completed"
 )
 
+// ExchangeMember is a user who has joined an exchange. DisplayName is empty
+// until the user sets one.
+type ExchangeMember struct {
+	UserID      string `json:"userId"`
+	Email       string `json:"email"`
+	DisplayName string `json:"displayName"`
+	IsOrganizer bool   `json:"isOrganizer"`
+}
+
 type Exchange struct {
 	ID          string `json:"id"`
 	OrganizerID string `json:"organizerId"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	// Calendar date, YYYY-MM-DD.
-	ExchangeDate string        `json:"exchangeDate"`
-	BudgetCents  *int          `json:"budgetCents" tstype:"number | null"`
-	State        ExchangeState `json:"state"`
-	InviteEmails []string      `json:"inviteEmails"`
-	MemberCount  int           `json:"memberCount"`
+	ExchangeDate string           `json:"exchangeDate"`
+	BudgetCents  *int             `json:"budgetCents" tstype:"number | null"`
+	State        ExchangeState    `json:"state"`
+	Members      []ExchangeMember `json:"members"`
+}
+
+// ListExchangeInvitesResponse holds the invites that have been neither accepted
+// nor declined. Only the organizer of an exchange may read them.
+type ListExchangeInvitesResponse struct {
+	InviteEmails []string `json:"inviteEmails"`
 }
 
 type CreateExchangeRequest struct {

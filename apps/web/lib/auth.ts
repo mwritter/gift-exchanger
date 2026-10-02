@@ -1,21 +1,13 @@
 import type {
-  ErrorResponse,
   MagicLinkRequest,
   User,
   VerifyLoginCodeRequest,
 } from "@giftexchanger/types";
+import { apiErrorMessage } from "./utils";
 
 export type { User };
 
 export const SESSION_COOKIE_NAME = "giftexchanger_session";
-
-async function errorMessage(response: Response, fallback: string) {
-  const data = (await response
-    .json()
-    .catch(() => null)) as Partial<ErrorResponse> | null;
-
-  return data?.error ?? fallback;
-}
 
 export async function requestMagicLink(email: string): Promise<void> {
   const body: MagicLinkRequest = { email };
@@ -27,7 +19,7 @@ export async function requestMagicLink(email: string): Promise<void> {
 
   if (!response.ok) {
     throw new Error(
-      await errorMessage(response, "We could not send your login link."),
+      await apiErrorMessage(response, "We could not send your login link."),
     );
   }
 }
@@ -44,7 +36,9 @@ export async function verifyLoginCode(
   });
 
   if (!response.ok) {
-    throw new Error(await errorMessage(response, "We could not log you in."));
+    throw new Error(
+      await apiErrorMessage(response, "We could not log you in."),
+    );
   }
 }
 
@@ -52,6 +46,8 @@ export async function logout(): Promise<void> {
   const response = await fetch("/api/auth/logout", { method: "POST" });
 
   if (!response.ok) {
-    throw new Error(await errorMessage(response, "We could not log you out."));
+    throw new Error(
+      await apiErrorMessage(response, "We could not log you out."),
+    );
   }
 }

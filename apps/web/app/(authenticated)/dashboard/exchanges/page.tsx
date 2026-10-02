@@ -2,29 +2,38 @@
 
 import { DashboardPageContent } from "@/components/DashboardPageLayout/DashboardPageContent";
 import { DashboardPageHeader } from "@/components/DashboardPageLayout/DashboardPageHeader";
-import { DashboardPageLayout } from "@/components/DashboardPageLayout/DashboardPageLayout";
+import { ExchangeList } from "@/components/ExchangeList/ExchangeList";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
-import { useState } from "react";
-
-// List exchanges
-// Create and update exchanges
+import { Spinner } from "@/components/ui/spinner";
+import { getExchanges } from "@/lib/exchanges";
+import { useQuery } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
+import Link from "next/link";
 
 export default function ExchangesPage() {
-    const [showCreateNewForm, setShowCreateNewForm] = useState(false)
 
-    return <DashboardPageLayout>
-        {/* <div className="flex items-center justify-between md:max-w-125 gap-5">
-            <DashboardPageHeader title="Exchanges" description="This is a list of exchanges your current a part of!" />
-            {!showCreateNewForm ? <Button onClick={() => setShowCreateNewForm(true)} size='sm'>
+    const { data, error } = useQuery({
+        queryKey: ['exchanges'],
+        queryFn: getExchanges
+    })
+
+    return <>
+        <DashboardPageHeader title="Exchanges" description="This is a list of exchanges your current a part of!">
+            <Button render={<Link href="/dashboard/exchanges/create" />} nativeButton={false}>
                 <Plus />
                 Create
-            </Button> : <Button variant={'destructive'} onClick={() => setShowCreateNewForm(false)}><X /></Button>}
-        </div> */}
+            </Button>
+        </DashboardPageHeader>
         <DashboardPageContent>
-            <EmptyExchangeList />
+            {error
+                ? <p className="text-sm text-destructive">{error.message}</p>
+                : !data
+                ? <Spinner className="self-center" />
+                : data.exchanges.length > 0
+                    ? <ExchangeList exchanges={data.exchanges} />
+                    : <EmptyExchangeList />}
         </DashboardPageContent>
-    </DashboardPageLayout>
+    </>
 }
 
 function EmptyExchangeList() {

@@ -18,24 +18,25 @@ const formSchema = z.object({
         .refine((date): date is Date => date instanceof Date, {
             error: "Pick an exchange date",
         }),
-    exchangeDescription: z.string().optional(),
-    exchangeBudget: z.number().nullable(),
+    description: z.string().optional(),
+    // In dollars; converted to cents when sent to the API.
+    budget: z.number().min(0).nullable(),
     inviteEmails: z.email().array()
 })
 
-type ExchangeValues = z.input<typeof formSchema>
+export type ExchangeValues = z.input<typeof formSchema>
 
 type Props = Partial<ExchangeValues> & {
-    title: string,
     onSubmit: (data: ExchangeValues) => void
+    isLoading?: boolean
 }
 
 export function ExchangeForm(props: Props) {
     const defaultValues: ExchangeValues = {
         name: props.name ?? "",
         exchangeDate: props.exchangeDate ?? null,
-        exchangeDescription: props.exchangeDescription ?? "",
-        exchangeBudget: props.exchangeBudget ?? null,
+        description: props.description ?? "",
+        budget: props.budget ?? null,
         inviteEmails: props.inviteEmails ?? []
     }
 
@@ -45,13 +46,11 @@ export function ExchangeForm(props: Props) {
             onSubmit: formSchema
         },
         onSubmit: ({ value }) => {
-            console.log({ value })
-            console.log("Submitting")
-        }
+            props.onSubmit(value)
+        },
     })
 
     return <div className='flex flex-col'>
-        <h1 className='text-2xl font-bold mb-10'>{props.title} Exchange</h1>
         <form id='-exchange-form' onSubmit={(e) => {
             e.preventDefault()
             handleSubmit()
@@ -99,36 +98,57 @@ export function ExchangeForm(props: Props) {
                         )
                     }}
                 </FromField>
-                <FromField name='exchangeDescription'>
-                    {() => {
+                <FromField name='description'>
+                    {(field) => {
                         return <Field>
-                            <Label htmlFor="textarea-description">Exchange Description</Label>
-                            <Textarea id="textarea-description" placeholder="Optional description for your exchange" />
+                            <Label htmlFor={field.name}>Exchange Description</Label>
+                            <Textarea
+                                id={field.name}
+                                name={field.name}
+                                value={field.state.value ?? ""}
+                                onBlur={field.handleBlur}
+                                onChange={e => field.handleChange(e.target.value)}
+                                placeholder="Optional description for your exchange"
+                            />
                         </Field>
                     }}
                 </FromField>
-                <FromField name='exchangeBudget'>
-                    {() => {
+                <FromField name='budget'>
+                    {(field) => {
                         return <Field>
-                            <Label htmlFor="input-budget">Exchange Budget</Label>
+                            <Label htmlFor={field.name}>Exchange Budget</Label>
                             <div className='flex items-center'>
-                                $<Input id="input-budget" type='number' placeholder="50" />
+                                $<Input
+                                    id={field.name}
+                                    name={field.name}
+                                    type='number'
+                                    value={field.state.value ?? ""}
+                                    onBlur={field.handleBlur}
+                                    onChange={e => {
+                                        const raw = e.target.value
+                                        field.handleChange(raw === "" ? null : Number(raw))
+                                    }}
+                                    placeholder="50"
+                                />
                             </div>
                         </Field>
                     }}
                 </FromField>
                 <FromField name='inviteEmails'>
-                    {() => (
+                    {(field) => (
                         <Field>
                             <Label>Invite Emails</Label>
-                            <ExchangeInviteForm />
+                            <ExchangeInviteForm
+                                emails={field.state.value}
+                                onChange={field.handleChange}
+                            />
                         </Field>
                     )}
                 </FromField>
             </div>
             <Field>
-                <Button type="submit" >
-                    {props.title} exchange
+                <Button type="submit" disabled={props.isLoading}>
+                    {props.isLoading ? 'Submitting' : 'Submit'}
                 </Button>
             </Field>
         </form>

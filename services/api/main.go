@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mwritter/giftexchanger/services/api/internal/auth"
+	"github.com/mwritter/giftexchanger/services/api/internal/exchanges"
+	"github.com/mwritter/giftexchanger/services/api/internal/mailer"
 	"github.com/mwritter/giftexchanger/services/api/internal/server"
 )
 
@@ -24,16 +26,21 @@ func main() {
 	}
 	defer pool.Close()
 
-	authService := auth.NewService(pool, auth.LogMailer{}, auth.Config{
-		BaseURL:      envOr("APP_BASE_URL", "http://localhost:3000"),
-		EntryURL:     envOr("APP_ENTRY_URL", "http://localhost:3000/dashboard"),
-		ErrorURL:     envOr("APP_ERROR_URL", "http://localhost:3000/auth/error"),
+	mailerService := mailer.LogMailer{}
+	baseURL := envOr("APP_BASE_URL", "http://localhost:3000")
+
+	authService := auth.NewService(pool, mailerService, auth.Config{
+		BaseURL:      baseURL,
+		EntryURL:     envOr("APP_ENTRY_URL", baseURL+"/dashboard"),
+		ErrorURL:     envOr("APP_ERROR_URL", baseURL+"/auth/error"),
 		MagicLinkTTL: durationOr("MAGIC_LINK_TTL", 15*time.Minute),
 		SessionTTL:   durationOr("SESSION_TTL", 30*24*time.Hour),
 		CookieSecure: boolOr("COOKIE_SECURE", false),
 	})
 
-	handler := server.New(pool, authService)
+	exchangesService := exchanges.NewService(pool, mailerService, baseURL)
+
+	handler := server.New(pool, authService, exchangesService)
 
 	port := envOr("PORT", "8080")
 	if port[0] != ':' {

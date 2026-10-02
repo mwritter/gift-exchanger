@@ -1,3 +1,5 @@
+import { User } from "@giftexchanger/types";
+
 export type StatusResponse = {
   status: string;
 };
@@ -13,4 +15,17 @@ export async function fetchApiStatus(
   }
 
   return data;
+}
+
+export async function me(): Promise<User | null> {
+  const response = await fetch("/api/me");
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      return null;
+    }
+    throw new Error("could not fetch user data");
+  }
+
+  return await response.json();
 }

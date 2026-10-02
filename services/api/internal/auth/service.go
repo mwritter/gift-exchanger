@@ -11,6 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mwritter/giftexchanger/services/api/internal/mailer"
 )
 
 var (
@@ -62,11 +64,11 @@ type User struct {
 
 type Service struct {
 	pool   *pgxpool.Pool
-	mailer Mailer
+	mailer mailer.Mailer
 	cfg    Config
 }
 
-func NewService(pool *pgxpool.Pool, mailer Mailer, cfg Config) *Service {
+func NewService(pool *pgxpool.Pool, mailer mailer.Mailer, cfg Config) *Service {
 	return &Service{pool: pool, mailer: mailer, cfg: cfg.withDefaults()}
 }
 
