@@ -1,0 +1,11 @@
+Sign in to GiftExchanger
+
+Enter this code to finish signing in:
+
+    {{.Code}}
+
+Or sign in with this link:
+
+{{.URL}}
+
+This code and link expire in {{.Expiry}}. If you didn't request this, you can ignore this email.

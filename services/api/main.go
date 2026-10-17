@@ -26,14 +26,15 @@ func main() {
 	}
 	defer pool.Close()
 
-	mailerService := mailer.LogMailer{}
 	baseURL := envOr("APP_BASE_URL", "http://localhost:3000")
+	magicLinkTTL := durationOr("MAGIC_LINK_TTL", 15*time.Minute)
+	mailerService := mailer.New(magicLinkTTL)
 
 	authService := auth.NewService(pool, mailerService, auth.Config{
 		BaseURL:      baseURL,
 		EntryURL:     envOr("APP_ENTRY_URL", baseURL+"/dashboard"),
 		ErrorURL:     envOr("APP_ERROR_URL", baseURL+"/auth/error"),
-		MagicLinkTTL: durationOr("MAGIC_LINK_TTL", 15*time.Minute),
+		MagicLinkTTL: magicLinkTTL,
 		SessionTTL:   durationOr("SESSION_TTL", 30*24*time.Hour),
 		CookieSecure: boolOr("COOKIE_SECURE", false),
 	})

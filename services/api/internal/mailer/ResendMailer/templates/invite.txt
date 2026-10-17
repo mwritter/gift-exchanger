@@ -1,0 +1,7 @@
+You're invited to {{.ExchangeName}}
+
+You've been invited to join a gift exchange on GiftExchanger. Sign in with this email address to accept the invite and add your wishlist:
+
+{{.URL}}
+
+If you weren't expecting this, you can ignore this email.
