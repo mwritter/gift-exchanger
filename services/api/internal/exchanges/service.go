@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mwritter/giftexchanger/services/api/internal/apitypes"
 	"github.com/mwritter/giftexchanger/services/api/internal/auth"
+	"github.com/mwritter/giftexchanger/services/api/internal/db"
 	"github.com/mwritter/giftexchanger/services/api/internal/mailer"
 )
 
@@ -28,6 +29,7 @@ var (
 
 type Service struct {
 	pool    *pgxpool.Pool
+	queries *db.Queries
 	mailer  mailer.Mailer
 	baseURL string
 }
@@ -37,47 +39,21 @@ func NewService(pool *pgxpool.Pool, mailer mailer.Mailer, baseURL string) *Servi
 	if baseURL == "" {
 		baseURL = "http://localhost:3000"
 	}
-	return &Service{pool: pool, mailer: mailer, baseURL: baseURL}
+	return &Service{pool: pool, queries: db.New(pool), mailer: mailer, baseURL: baseURL}
 }
 
 func (s *Service) GetExchanges(ctx context.Context, userID string) ([]apitypes.Exchange, error) {
-	rows, err := s.pool.Query(ctx, `
-	SELECT
-		e.id::text,
-		e.organizer_id::text,
-		e.name,
-		e.exchange_description,
-		COALESCE(to_char(e.exchange_date, 'YYYY-MM-DD'), ''),
-		e.exchange_budget_cents,
-		e.state
-	FROM exchanges e
-	JOIN exchange_members mine
-		ON mine.exchange_id = e.id AND mine.user_id = $1::uuid
-	ORDER BY e.created_at DESC
-`, userID)
-
+	rows, err := s.queries.ListExchangesForUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list exchanges: %w", err)
 	}
-	defer rows.Close()
 
-	exchanges := []apitypes.Exchange{}
-	ids := []string{}
-	for rows.Next() {
-		var ex apitypes.Exchange
-		if err := rows.Scan(
-			&ex.ID, &ex.OrganizerID, &ex.Name, &ex.Description,
-			&ex.ExchangeDate, &ex.BudgetCents, &ex.State,
-		); err != nil {
-			return nil, fmt.Errorf("scan exchange: %w", err)
-		}
-		exchanges = append(exchanges, ex)
-		ids = append(ids, ex.ID)
+	exchanges := make([]apitypes.Exchange, 0, len(rows))
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		exchanges = append(exchanges, exchangeFromRow(db.GetExchangeForUserRow(row)))
+		ids = append(ids, row.ID)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list exchanges: %w", err)
-	}
-	rows.Close()
 
 	byExchange, err := s.membersByExchange(ctx, ids)
 	if err != nil {
@@ -90,30 +66,17 @@ func (s *Service) GetExchanges(ctx context.Context, userID string) ([]apitypes.E
 }
 
 func (s *Service) GetExchangeById(ctx context.Context, userID string, exchangeID string) (apitypes.Exchange, error) {
-	var ex apitypes.Exchange
-	err := s.pool.QueryRow(ctx, `
-	SELECT
-		e.id::text,
-		e.organizer_id::text,
-		e.name,
-		e.exchange_description,
-		COALESCE(to_char(e.exchange_date, 'YYYY-MM-DD'), ''),
-		e.exchange_budget_cents,
-		e.state
-	FROM exchanges e
-	JOIN exchange_members mine
-		ON mine.exchange_id = e.id AND mine.user_id = $1::uuid
-	WHERE e.id::text = $2
-`, userID, exchangeID).Scan(
-		&ex.ID, &ex.OrganizerID, &ex.Name, &ex.Description,
-		&ex.ExchangeDate, &ex.BudgetCents, &ex.State,
-	)
+	row, err := s.queries.GetExchangeForUser(ctx, db.GetExchangeForUserParams{
+		UserID:     userID,
+		ExchangeID: exchangeID,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apitypes.Exchange{}, ErrNotFound
 	}
 	if err != nil {
 		return apitypes.Exchange{}, fmt.Errorf("get exchange: %w", err)
 	}
+	ex := exchangeFromRow(row)
 
 	byExchange, err := s.membersByExchange(ctx, []string{ex.ID})
 	if err != nil {
@@ -126,10 +89,7 @@ func (s *Service) GetExchangeById(ctx context.Context, userID string, exchangeID
 // GetExchangeInvites returns the still-open invites for an exchange. Only the
 // organizer may read them, so members get ErrForbidden rather than an empty list.
 func (s *Service) GetExchangeInvites(ctx context.Context, userID, exchangeID string) ([]string, error) {
-	var organizerID string
-	err := s.pool.QueryRow(ctx, `
-		SELECT organizer_id::text FROM exchanges WHERE id::text = $1
-	`, exchangeID).Scan(&organizerID)
+	organizerID, err := s.queries.GetExchangeOrganizerID(ctx, exchangeID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -140,28 +100,8 @@ func (s *Service) GetExchangeInvites(ctx context.Context, userID, exchangeID str
 		return nil, ErrForbidden
 	}
 
-	rows, err := s.pool.Query(ctx, `
-		SELECT email
-		FROM exchange_invites
-		WHERE exchange_id::text = $1
-			AND accepted_at IS NULL
-			AND declined_at IS NULL
-		ORDER BY lower(email)
-	`, exchangeID)
+	inviteEmails, err := s.queries.ListOpenInviteEmails(ctx, exchangeID)
 	if err != nil {
-		return nil, fmt.Errorf("list invites: %w", err)
-	}
-	defer rows.Close()
-
-	inviteEmails := []string{}
-	for rows.Next() {
-		var email string
-		if err := rows.Scan(&email); err != nil {
-			return nil, fmt.Errorf("scan invite: %w", err)
-		}
-		inviteEmails = append(inviteEmails, email)
-	}
-	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list invites: %w", err)
 	}
 	return inviteEmails, nil
@@ -176,30 +116,47 @@ func (s *Service) membersByExchange(ctx context.Context, exchangeIDs []string) (
 		return byExchange, nil
 	}
 
-	rows, err := s.pool.Query(ctx, `
-		SELECT m.exchange_id::text, u.id::text, u.email, u.display_name
-		FROM exchange_members m
-		JOIN users u ON u.id = m.user_id
-		WHERE m.exchange_id::text = ANY($1::text[])
-		ORDER BY m.created_at, lower(u.email)
-	`, exchangeIDs)
+	rows, err := s.queries.ListMembersForExchanges(ctx, exchangeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list members: %w", err)
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var exchangeID string
-		var member apitypes.ExchangeMember
-		if err := rows.Scan(&exchangeID, &member.UserID, &member.Email, &member.DisplayName); err != nil {
-			return nil, fmt.Errorf("scan member: %w", err)
-		}
-		byExchange[exchangeID] = append(byExchange[exchangeID], member)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list members: %w", err)
+	for _, row := range rows {
+		byExchange[row.ExchangeID] = append(byExchange[row.ExchangeID], apitypes.ExchangeMember{
+			UserID:      row.UserID,
+			Email:       row.Email,
+			DisplayName: row.DisplayName,
+		})
 	}
 	return byExchange, nil
+}
+
+// exchangeFromRow leaves Members unset; callers fill it from membersByExchange.
+func exchangeFromRow(row db.GetExchangeForUserRow) apitypes.Exchange {
+	return apitypes.Exchange{
+		ID:           row.ID,
+		OrganizerID:  row.OrganizerID,
+		Name:         row.Name,
+		Description:  row.ExchangeDescription,
+		ExchangeDate: row.ExchangeDate,
+		BudgetCents:  intPtr(row.ExchangeBudgetCents),
+		State:        apitypes.ExchangeState(row.State),
+	}
+}
+
+func intPtr(v *int32) *int {
+	if v == nil {
+		return nil
+	}
+	n := int(*v)
+	return &n
+}
+
+func int32Ptr(v *int) *int32 {
+	if v == nil {
+		return nil
+	}
+	n := int32(*v)
+	return &n
 }
 
 // withOrganizer flags the organizer and guarantees a non-nil slice so the field
@@ -243,32 +200,33 @@ func (s *Service) CreateExchange(ctx context.Context, organizerID, organizerEmai
 		return apitypes.Exchange{}, fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	q := s.queries.WithTx(tx)
 
-	var id string
-	err = tx.QueryRow(ctx, `
-		INSERT INTO exchanges (
-			organizer_id, name, exchange_date, state, invite_token,
-			exchange_description, exchange_budget_cents
-		)
-		VALUES ($1::uuid, $2, $3::date, $4, $5, $6, $7)
-		RETURNING id::text
-	`, organizerID, name, date.Format("2006-01-02"), apitypes.ExchangeStateDraft, token, description, req.BudgetCents).Scan(&id)
+	id, err := q.InsertExchange(ctx, db.InsertExchangeParams{
+		OrganizerID:  organizerID,
+		Name:         name,
+		ExchangeDate: date.Format("2006-01-02"),
+		State:        string(apitypes.ExchangeStateDraft),
+		InviteToken:  token,
+		Description:  description,
+		BudgetCents:  int32Ptr(req.BudgetCents),
+	})
 	if err != nil {
 		return apitypes.Exchange{}, fmt.Errorf("insert exchange: %w", err)
 	}
 
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO exchange_members (exchange_id, user_id)
-		VALUES ($1::uuid, $2::uuid)
-	`, id, organizerID); err != nil {
+	if err := q.InsertExchangeMember(ctx, db.InsertExchangeMemberParams{
+		ExchangeID: id,
+		UserID:     organizerID,
+	}); err != nil {
 		return apitypes.Exchange{}, fmt.Errorf("insert organizer membership: %w", err)
 	}
 
 	for _, email := range inviteEmails {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO exchange_invites (exchange_id, email)
-			VALUES ($1::uuid, $2)
-		`, id, email); err != nil {
+		if err := q.InsertExchangeInvite(ctx, db.InsertExchangeInviteParams{
+			ExchangeID: id,
+			Email:      email,
+		}); err != nil {
 			return apitypes.Exchange{}, fmt.Errorf("insert invite: %w", err)
 		}
 	}
@@ -312,51 +270,31 @@ func (s *Service) UpdateExchange(ctx context.Context, exchangeID, organizerID, o
 		return apitypes.Exchange{}, fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	q := s.queries.WithTx(tx)
 
-	tag, err := tx.Exec(ctx, `
-		UPDATE exchanges
-		SET name = $3,
-			exchange_description = $4,
-			exchange_date = $5::date,
-			exchange_budget_cents = $6,
-			updated_at = now()
-		WHERE id::text = $1 AND organizer_id::text = $2
-	`, exchangeID, organizerID, name, description, date.Format("2006-01-02"), req.BudgetCents)
+	updated, err := q.UpdateExchange(ctx, db.UpdateExchangeParams{
+		ID:           exchangeID,
+		OrganizerID:  organizerID,
+		Name:         name,
+		Description:  description,
+		ExchangeDate: date.Format("2006-01-02"),
+		BudgetCents:  int32Ptr(req.BudgetCents),
+	})
 	if err != nil {
 		return apitypes.Exchange{}, fmt.Errorf("update exchange: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
+	if updated == 0 {
 		return apitypes.Exchange{}, ErrNotFound
 	}
 
-	rows, err := tx.Query(ctx, `
-		SELECT lower(email), accepted_at IS NOT NULL, declined_at IS NOT NULL
-		FROM exchange_invites
-		WHERE exchange_id::text = $1
-	`, exchangeID)
+	inviteRows, err := q.ListInviteStates(ctx, exchangeID)
 	if err != nil {
 		return apitypes.Exchange{}, fmt.Errorf("list invites: %w", err)
 	}
-
-	type inviteState struct {
-		accepted bool
-		declined bool
+	existing := make(map[string]db.ListInviteStatesRow, len(inviteRows))
+	for _, row := range inviteRows {
+		existing[row.Email] = row
 	}
-	existing := map[string]inviteState{}
-	for rows.Next() {
-		var email string
-		var state inviteState
-		if err := rows.Scan(&email, &state.accepted, &state.declined); err != nil {
-			rows.Close()
-			return apitypes.Exchange{}, fmt.Errorf("scan invite: %w", err)
-		}
-		existing[email] = state
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return apitypes.Exchange{}, fmt.Errorf("list invites: %w", err)
-	}
-	rows.Close()
 
 	wanted := make(map[string]struct{}, len(inviteEmails))
 	var toSend []string
@@ -364,39 +302,35 @@ func (s *Service) UpdateExchange(ctx context.Context, exchangeID, organizerID, o
 		wanted[email] = struct{}{}
 		state, ok := existing[email]
 		if !ok {
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO exchange_invites (exchange_id, email)
-				VALUES ($1::uuid, $2)
-			`, exchangeID, email); err != nil {
+			if err := q.InsertExchangeInvite(ctx, db.InsertExchangeInviteParams{
+				ExchangeID: exchangeID,
+				Email:      email,
+			}); err != nil {
 				return apitypes.Exchange{}, fmt.Errorf("insert invite: %w", err)
 			}
 			toSend = append(toSend, email)
 			continue
 		}
-		if state.accepted || !state.declined {
+		if state.Accepted || !state.Declined {
 			continue
 		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE exchange_invites
-			SET declined_at = NULL
-			WHERE exchange_id::text = $1 AND lower(email) = $2
-		`, exchangeID, email); err != nil {
+		if err := q.ReopenDeclinedInvite(ctx, db.ReopenDeclinedInviteParams{
+			ExchangeID: exchangeID,
+			Email:      email,
+		}); err != nil {
 			return apitypes.Exchange{}, fmt.Errorf("reopen invite: %w", err)
 		}
 		toSend = append(toSend, email)
 	}
 
 	for email, state := range existing {
-		if _, ok := wanted[email]; ok || state.accepted || state.declined {
+		if _, ok := wanted[email]; ok || state.Accepted || state.Declined {
 			continue
 		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM exchange_invites
-			WHERE exchange_id::text = $1
-				AND lower(email) = $2
-				AND accepted_at IS NULL
-				AND declined_at IS NULL
-		`, exchangeID, email); err != nil {
+		if err := q.DeleteOpenInvite(ctx, db.DeleteOpenInviteParams{
+			ExchangeID: exchangeID,
+			Email:      email,
+		}); err != nil {
 			return apitypes.Exchange{}, fmt.Errorf("delete invite: %w", err)
 		}
 	}
@@ -416,14 +350,14 @@ func (s *Service) UpdateExchange(ctx context.Context, exchangeID, organizerID, o
 }
 
 func (s *Service) DeleteExchange(ctx context.Context, exchangeID, userID string) error {
-	tag, err := s.pool.Exec(ctx, `
-		DELETE FROM exchanges
-		WHERE id::text = $1 AND organizer_id::text = $2
-	`, exchangeID, userID)
+	deleted, err := s.queries.DeleteExchange(ctx, db.DeleteExchangeParams{
+		ID:          exchangeID,
+		OrganizerID: userID,
+	})
 	if err != nil {
 		return fmt.Errorf("delete exchange: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
+	if deleted == 0 {
 		return ErrNotFound
 	}
 	return nil

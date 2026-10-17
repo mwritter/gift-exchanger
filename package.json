@@ -10,6 +10,7 @@
     "db:migrate": "./scripts/goose.sh up",
     "db:status": "./scripts/goose.sh status",
     "db:down": "./scripts/goose.sh down",
+    "db:generate": "go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate -f services/api/sqlc.yaml",
     "types:generate": "go run -C services/api github.com/gzuidhof/tygo@v0.2.18 generate"
   },
   "devDependencies": {
