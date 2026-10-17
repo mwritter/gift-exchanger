@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mwritter/giftexchanger/services/api/internal/db"
 	"github.com/mwritter/giftexchanger/services/api/internal/mailer"
 )
 
@@ -63,13 +64,14 @@ type User struct {
 }
 
 type Service struct {
-	pool   *pgxpool.Pool
-	mailer mailer.Mailer
-	cfg    Config
+	pool    *pgxpool.Pool
+	queries *db.Queries
+	mailer  mailer.Mailer
+	cfg     Config
 }
 
 func NewService(pool *pgxpool.Pool, mailer mailer.Mailer, cfg Config) *Service {
-	return &Service{pool: pool, mailer: mailer, cfg: cfg.withDefaults()}
+	return &Service{pool: pool, queries: db.New(pool), mailer: mailer, cfg: cfg.withDefaults()}
 }
 
 func (s *Service) CookieName() string        { return s.cfg.CookieName }
@@ -113,19 +115,19 @@ func (s *Service) RequestMagicLink(ctx context.Context, rawEmail string) error {
 		return fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	q := s.queries.WithTx(tx)
 
-	if _, err := tx.Exec(ctx, `
-		UPDATE magic_link_tokens
-		SET consumed_at = now()
-		WHERE lower(email) = $1 AND consumed_at IS NULL
-	`, email); err != nil {
+	if err := q.InvalidateMagicLinkTokens(ctx, email); err != nil {
 		return fmt.Errorf("invalidate prior tokens: %w", err)
 	}
 
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO magic_link_tokens (email, token_hash, code_hash, expires_at)
-		VALUES ($1, $2, $3, $4)
-	`, email, hash, HashLoginCode(email, code), expires); err != nil {
+	codeHash := HashLoginCode(email, code)
+	if err := q.InsertMagicLinkToken(ctx, db.InsertMagicLinkTokenParams{
+		Email:     email,
+		TokenHash: hash,
+		CodeHash:  &codeHash,
+		ExpiresAt: expires,
+	}); err != nil {
 		return fmt.Errorf("insert token: %w", err)
 	}
 
@@ -151,16 +153,9 @@ func (s *Service) ConsumeMagicLink(ctx context.Context, rawToken string) (sessio
 		return "", time.Time{}, fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	q := s.queries.WithTx(tx)
 
-	var email string
-	err = tx.QueryRow(ctx, `
-		UPDATE magic_link_tokens
-		SET consumed_at = now()
-		WHERE token_hash = $1
-		  AND consumed_at IS NULL
-		  AND expires_at > now()
-		RETURNING email
-	`, hash).Scan(&email)
+	email, err := q.ConsumeMagicLinkToken(ctx, hash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", time.Time{}, ErrInvalidToken
 	}
@@ -168,7 +163,7 @@ func (s *Service) ConsumeMagicLink(ctx context.Context, rawToken string) (sessio
 		return "", time.Time{}, fmt.Errorf("consume token: %w", err)
 	}
 
-	sessionRaw, expiresAt, err = s.startSession(ctx, tx, email)
+	sessionRaw, expiresAt, err = s.startSession(ctx, q, email)
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -196,34 +191,25 @@ func (s *Service) VerifyLoginCode(ctx context.Context, rawEmail, rawCode string)
 		return "", time.Time{}, fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	q := s.queries.WithTx(tx)
 
-	var tokenID, codeHash string
-	var attempts int
-	err = tx.QueryRow(ctx, `
-		SELECT id::text, code_hash, attempts
-		FROM magic_link_tokens
-		WHERE lower(email) = $1
-		  AND consumed_at IS NULL
-		  AND expires_at > now()
-		  AND code_hash IS NOT NULL
-		ORDER BY created_at DESC
-		LIMIT 1
-		FOR UPDATE
-	`, email).Scan(&tokenID, &codeHash, &attempts)
+	token, err := q.GetActiveLoginCodeForUpdate(ctx, email)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", time.Time{}, ErrInvalidCode
 	}
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("load code: %w", err)
 	}
+	var codeHash string
+	if token.CodeHash != nil {
+		codeHash = *token.CodeHash
+	}
 
 	if subtle.ConstantTimeCompare([]byte(codeHash), []byte(HashLoginCode(email, code))) != 1 {
-		if _, err := tx.Exec(ctx, `
-			UPDATE magic_link_tokens
-			SET attempts = attempts + 1,
-			    consumed_at = CASE WHEN attempts + 1 >= $2 THEN now() ELSE consumed_at END
-			WHERE id = $1
-		`, tokenID, maxCodeAttempts); err != nil {
+		if err := q.RecordLoginCodeAttempt(ctx, db.RecordLoginCodeAttemptParams{
+			ID:          token.ID,
+			MaxAttempts: maxCodeAttempts,
+		}); err != nil {
 			return "", time.Time{}, fmt.Errorf("record attempt: %w", err)
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -232,10 +218,10 @@ func (s *Service) VerifyLoginCode(ctx context.Context, rawEmail, rawCode string)
 		return "", time.Time{}, ErrInvalidCode
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE magic_link_tokens SET consumed_at = now() WHERE id = $1`, tokenID); err != nil {
+	if err := q.ConsumeMagicLinkTokenByID(ctx, token.ID); err != nil {
 		return "", time.Time{}, fmt.Errorf("consume code: %w", err)
 	}
-	sessionRaw, expiresAt, err = s.startSession(ctx, tx, email)
+	sessionRaw, expiresAt, err = s.startSession(ctx, q, email)
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -247,14 +233,8 @@ func (s *Service) VerifyLoginCode(ctx context.Context, rawEmail, rawCode string)
 
 // startSession creates the user on first login and inserts a session, inside
 // the caller's transaction.
-func (s *Service) startSession(ctx context.Context, tx pgx.Tx, email string) (sessionRaw string, expiresAt time.Time, err error) {
-	var userID string
-	err = tx.QueryRow(ctx, `
-		INSERT INTO users (email)
-		VALUES ($1)
-		ON CONFLICT ((lower(email))) DO UPDATE SET email = users.email
-		RETURNING id
-	`, email).Scan(&userID)
+func (s *Service) startSession(ctx context.Context, q *db.Queries, email string) (sessionRaw string, expiresAt time.Time, err error) {
+	userID, err := q.UpsertUserByEmail(ctx, email)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("upsert user: %w", err)
 	}
@@ -264,10 +244,11 @@ func (s *Service) startSession(ctx context.Context, tx pgx.Tx, email string) (se
 		return "", time.Time{}, fmt.Errorf("generate session: %w", err)
 	}
 	expiresAt = time.Now().Add(s.cfg.SessionTTL)
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO sessions (user_id, token_hash, expires_at)
-		VALUES ($1, $2, $3)
-	`, userID, HashToken(sessionRaw), expiresAt); err != nil {
+	if err := q.InsertSession(ctx, db.InsertSessionParams{
+		UserID:    userID,
+		TokenHash: HashToken(sessionRaw),
+		ExpiresAt: expiresAt,
+	}); err != nil {
 		return "", time.Time{}, fmt.Errorf("insert session: %w", err)
 	}
 	return sessionRaw, expiresAt, nil
@@ -277,8 +258,7 @@ func (s *Service) Logout(ctx context.Context, sessionRaw string) error {
 	if sessionRaw == "" {
 		return nil
 	}
-	_, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE token_hash = $1`, HashToken(sessionRaw))
-	if err != nil {
+	if err := s.queries.DeleteSession(ctx, HashToken(sessionRaw)); err != nil {
 		return fmt.Errorf("delete session: %w", err)
 	}
 	return nil
@@ -289,18 +269,12 @@ func (s *Service) UserFromSession(ctx context.Context, sessionRaw string) (*User
 		return nil, ErrUnauthorized
 	}
 
-	var user User
-	err := s.pool.QueryRow(ctx, `
-		SELECT u.id::text, u.email, u.display_name
-		FROM sessions s
-		JOIN users u ON u.id = s.user_id
-		WHERE s.token_hash = $1 AND s.expires_at > now()
-	`, HashToken(sessionRaw)).Scan(&user.ID, &user.Email, &user.DisplayName)
+	row, err := s.queries.GetUserBySession(ctx, HashToken(sessionRaw))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUnauthorized
 	}
 	if err != nil {
 		return nil, fmt.Errorf("lookup session: %w", err)
 	}
-	return &user, nil
+	return &User{ID: row.ID, Email: row.Email, DisplayName: row.DisplayName}, nil
 }
