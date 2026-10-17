@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#f6f6f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:8px;padding:32px;">
+            <tr>
+              <td>
+                <h1 style="margin:0 0 16px;font-size:20px;">Sign in to GiftExchanger</h1>
+                <p style="margin:0 0 16px;font-size:15px;line-height:22px;">Enter this code to finish signing in:</p>
+                <p style="margin:0 0 24px;font-size:32px;font-weight:700;letter-spacing:8px;font-family:Menlo,Consolas,monospace;">{{.Code}}</p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:22px;">Or sign in with one click:</p>
+                <p style="margin:0 0 24px;">
+                  <a href="{{.URL}}" style="display:inline-block;background:#b91c1c;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:600;font-size:15px;">Sign in</a>
+                </p>
+                <p style="margin:0;font-size:13px;line-height:20px;color:#666666;">This code and link expire in {{.Expiry}}. If you didn't request this, you can ignore this email.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
